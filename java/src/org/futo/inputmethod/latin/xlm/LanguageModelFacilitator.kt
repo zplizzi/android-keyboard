@@ -375,6 +375,7 @@ public class LanguageModelFacilitator(
             wordComposer,
             values.inputStyle,
             settingsValues.mAutoCorrectionEnabledPerUserSettings,
+            settingsValues.mAutoCap,
             -1,
             locale,
             suggestionResults,

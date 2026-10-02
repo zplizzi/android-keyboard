@@ -82,7 +82,7 @@ public class SuggestedWordsTests {
         final SuggestedWordInfo returnedWordInfo =
                 Suggest.getTransformedSuggestedWordInfo(suggestedWordInfo,
                 Locale.ENGLISH, false /* isAllUpperCase */, false /* isFirstCharCapitalized */,
-                trailingSingleQuotesCount);
+                false /* isAllLowerCase */, trailingSingleQuotesCount);
         assertEquals(suggestedWordInfo.mAutoCommitFirstWordConfidence,
                 returnedWordInfo.mAutoCommitFirstWordConfidence);
         return returnedWordInfo;
