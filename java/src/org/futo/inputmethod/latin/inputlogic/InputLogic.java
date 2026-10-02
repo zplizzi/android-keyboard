@@ -2875,6 +2875,7 @@ public final class InputLogic {
                     settingsValues.mTransformerPredictionEnabled
                 ),
                 settingsValues.mAutoCorrectionEnabledPerUserSettings,
+                settingsValues.mAutoCap,
                 inputStyle, sequenceNumber, callback);
     }
 

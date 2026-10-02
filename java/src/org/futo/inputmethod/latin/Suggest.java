@@ -101,37 +101,45 @@ public final class Suggest {
     public void getSuggestedWords(final WordComposer wordComposer,
             final NgramContext ngramContext, final Keyboard keyboard,
             final SettingsValuesForSuggestion settingsValuesForSuggestion,
-            final boolean isCorrectionEnabled, final int inputStyle, final int sequenceNumber,
+            final boolean isCorrectionEnabled, final boolean isAutoCapEnabled,
+            final int inputStyle, final int sequenceNumber,
             final OnGetSuggestedWordsCallback callback) {
         if (wordComposer.isBatchMode()) {
             getSuggestedWordsForBatchInput(wordComposer, ngramContext, keyboard,
-                    settingsValuesForSuggestion, inputStyle, sequenceNumber, callback);
+                    settingsValuesForSuggestion, isAutoCapEnabled, inputStyle, sequenceNumber,
+                    callback);
         } else {
             getSuggestedWordsForNonBatchInput(wordComposer, ngramContext, keyboard,
                     settingsValuesForSuggestion, inputStyle, isCorrectionEnabled,
-                    sequenceNumber, callback);
+                    isAutoCapEnabled, sequenceNumber, callback);
         }
     }
 
     private static ArrayList<SuggestedWordInfo> getTransformedSuggestedWordInfoList(
             final WordComposer wordComposer, final SuggestionResults results,
-            final int trailingSingleQuotesCount, final Locale defaultLocale) {
+            final int trailingSingleQuotesCount, final Locale defaultLocale,
+            final boolean isAutoCapEnabled) {
         final boolean shouldMakeSuggestionsAllUpperCase = wordComposer.isAllUpperCase()
                 && !wordComposer.isResumed();
         final boolean isOnlyFirstCharCapitalized =
                 wordComposer.isOrWillBeOnlyFirstCharCapitalized();
+        // With auto-capitalization disabled, don't introduce capitals the user didn't type
+        // (e.g. "i" -> "I", "chinna" -> "China")
+        final boolean shouldMakeSuggestionsLowerCase = !isAutoCapEnabled
+                && !shouldMakeSuggestionsAllUpperCase && !isOnlyFirstCharCapitalized
+                && !wordComposer.hasCaps();
 
         final ArrayList<SuggestedWordInfo> suggestionsContainer = new ArrayList<>(results);
         final int suggestionsCount = suggestionsContainer.size();
         if (isOnlyFirstCharCapitalized || shouldMakeSuggestionsAllUpperCase
-                || 0 != trailingSingleQuotesCount) {
+                || shouldMakeSuggestionsLowerCase || 0 != trailingSingleQuotesCount) {
             for (int i = 0; i < suggestionsCount; ++i) {
                 final SuggestedWordInfo wordInfo = suggestionsContainer.get(i);
                 final Locale wordLocale = (wordInfo.mSourceDict != null) ? wordInfo.mSourceDict.mLocale : null;
                 final SuggestedWordInfo transformedWordInfo = getTransformedSuggestedWordInfo(
                         wordInfo, null == wordLocale ? defaultLocale : wordLocale,
                         shouldMakeSuggestionsAllUpperCase, isOnlyFirstCharCapitalized,
-                        trailingSingleQuotesCount);
+                        shouldMakeSuggestionsLowerCase, trailingSingleQuotesCount);
                 suggestionsContainer.set(i, transformedWordInfo);
             }
         }
@@ -160,8 +168,8 @@ public final class Suggest {
 
     public static SuggestedWords obtainNonBatchedInputSuggestedWords(
             final WordComposer wordComposer, final int inputStyleIfNotPrediction,
-            final boolean isCorrectionEnabled, final int sequenceNumber,
-            final Locale locale, final SuggestionResults suggestionResults,
+            final boolean isCorrectionEnabled, final boolean isAutoCapEnabled,
+            final int sequenceNumber, final Locale locale, final SuggestionResults suggestionResults,
             final float autoCorrectionThreshold, final boolean numberRowActive
     ) {
         final String typedWordString = wordComposer.getTypedWord();
@@ -173,7 +181,7 @@ public final class Suggest {
 
         final ArrayList<SuggestedWordInfo> suggestionsContainer =
                 getTransformedSuggestedWordInfoList(wordComposer, suggestionResults,
-                        trailingSingleQuotesCount, locale);
+                        trailingSingleQuotesCount, locale, isAutoCapEnabled);
 
         boolean foundInDictionary = false;
         Dictionary sourceDictionaryOfRemovedWord = null;
@@ -327,7 +335,8 @@ public final class Suggest {
             final NgramContext ngramContext, final Keyboard keyboard,
             final SettingsValuesForSuggestion settingsValuesForSuggestion,
             final int inputStyleIfNotPrediction, final boolean isCorrectionEnabled,
-            final int sequenceNumber, final OnGetSuggestedWordsCallback callback) {
+            final boolean isAutoCapEnabled, final int sequenceNumber,
+            final OnGetSuggestedWordsCallback callback) {
         final SuggestionResults suggestionResults = mDictionaryFacilitator.getSuggestionResults(
                 wordComposer.getComposedDataSnapshot(), ngramContext, keyboard,
                 settingsValuesForSuggestion, SESSION_ID_TYPING, inputStyleIfNotPrediction);
@@ -335,7 +344,8 @@ public final class Suggest {
 
         callback.onGetSuggestedWords(
             obtainNonBatchedInputSuggestedWords(wordComposer, inputStyleIfNotPrediction,
-                isCorrectionEnabled, sequenceNumber, locale, suggestionResults, mAutoCorrectionThreshold,
+                isCorrectionEnabled, isAutoCapEnabled, sequenceNumber, locale, suggestionResults,
+                mAutoCorrectionThreshold,
                     keyboard.mId.mNumberRow)
         );
     }
@@ -345,7 +355,7 @@ public final class Suggest {
     private void getSuggestedWordsForBatchInput(final WordComposer wordComposer,
             final NgramContext ngramContext, final Keyboard keyboard,
             final SettingsValuesForSuggestion settingsValuesForSuggestion,
-            final int inputStyle, final int sequenceNumber,
+            final boolean isAutoCapEnabled, final int inputStyle, final int sequenceNumber,
             final OnGetSuggestedWordsCallback callback) {
         final SuggestionResults suggestionResults = mDictionaryFacilitator.getSuggestionResults(
                 wordComposer.getComposedDataSnapshot(), ngramContext, keyboard,
@@ -357,13 +367,15 @@ public final class Suggest {
         final int suggestionsCount = suggestionsContainer.size();
         final boolean isFirstCharCapitalized = wordComposer.wasShiftedNoLock();
         final boolean isAllUpperCase = wordComposer.isAllUpperCase();
-        if (isFirstCharCapitalized || isAllUpperCase) {
+        final boolean isAllLowerCase = !isAutoCapEnabled && !isFirstCharCapitalized
+                && !isAllUpperCase;
+        if (isFirstCharCapitalized || isAllUpperCase || isAllLowerCase) {
             for (int i = 0; i < suggestionsCount; ++i) {
                 final SuggestedWordInfo wordInfo = suggestionsContainer.get(i);
                 final Locale wordlocale = (wordInfo.mSourceDict != null) ? wordInfo.mSourceDict.mLocale : null;
                 final SuggestedWordInfo transformedWordInfo = getTransformedSuggestedWordInfo(
                         wordInfo, null == wordlocale ? locale : wordlocale, isAllUpperCase,
-                        isFirstCharCapitalized, 0 /* trailingSingleQuotesCount */);
+                        isFirstCharCapitalized, isAllLowerCase, 0 /* trailingSingleQuotesCount */);
                 suggestionsContainer.set(i, transformedWordInfo);
             }
         }
@@ -466,12 +478,15 @@ public final class Suggest {
 
     /* package for test */ static SuggestedWordInfo getTransformedSuggestedWordInfo(
             final SuggestedWordInfo wordInfo, final Locale locale, final boolean isAllUpperCase,
-            final boolean isOnlyFirstCharCapitalized, final int trailingSingleQuotesCount) {
+            final boolean isOnlyFirstCharCapitalized, final boolean isAllLowerCase,
+            final int trailingSingleQuotesCount) {
         final StringBuilder sb = new StringBuilder(wordInfo.mWord.length());
         if (isAllUpperCase) {
             sb.append(wordInfo.mWord.toUpperCase(locale));
         } else if (isOnlyFirstCharCapitalized) {
             sb.append(StringUtils.capitalizeFirstCodePoint(wordInfo.mWord, locale));
+        } else if (isAllLowerCase) {
+            sb.append(wordInfo.mWord.toLowerCase(locale));
         } else {
             sb.append(wordInfo.mWord);
         }

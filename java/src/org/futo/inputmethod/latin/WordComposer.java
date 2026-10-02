@@ -388,6 +388,13 @@ public final class WordComposer {
     }
 
     /**
+     * Returns true if any character is upper case, otherwise returns false.
+     */
+    public boolean hasCaps() {
+        return mCapsCount > 0;
+    }
+
+    /**
      * Returns true if we have digits in the composing word.
      */
     public boolean hasDigits() {
